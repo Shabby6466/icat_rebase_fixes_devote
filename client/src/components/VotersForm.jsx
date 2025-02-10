@@ -10,12 +10,17 @@ export default function VotersForm({ contract, web3, currentAccount }) {
   const handleForm = async (event) => {
     event.preventDefault();
     try {
+      if (!web3.utils.isAddress(name)) {
+        throw new Error("Invalid Ethereum address");
+      }
+      
       await contract.methods.addVoter(name).send({ from: currentAccount });
-      console.log("voter added");
+      alert("Voter added successfully!");
+      setName("");
     } catch (error) {
-      console.log(error);
+      console.error("Error adding voter:", error);
+      alert("Error adding voter: " + (error.message || "Unknown error occurred"));
     }
-    setName("");
   };
 
   const handleNameChange = (event) => {

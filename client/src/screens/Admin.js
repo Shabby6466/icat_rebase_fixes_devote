@@ -43,9 +43,25 @@ export default function Admin({ role, contract, web3, currentAccount }) {
   };
 
   useEffect(() => {
-    getElectionState();
-    getCandidates();
-  }, [contract]);
+    const initAdmin = async () => {
+      try {
+        if (contract && currentAccount) {
+          const owner = await contract.methods.owner().call();
+          if (owner.toLowerCase() !== currentAccount.toLowerCase()) {
+            alert("You are not the admin of this contract");
+            return;
+          }
+          await getElectionState();
+          await getCandidates();
+        }
+      } catch (error) {
+        console.error("Admin initialization error:", error);
+        alert("Error initializing admin panel: " + error.message);
+      }
+    };
+
+    initAdmin();
+  }, [contract, currentAccount]);
 
   const handleEnd = () => {
     setOpen(true);
@@ -56,27 +72,52 @@ export default function Admin({ role, contract, web3, currentAccount }) {
   };
 
   const handleAgree = async () => {
-    if (electionState === 0) {
-      try {
-        if (contract) {
-          await contract.methods.startElection().send({ from: currentAccount });
-          getElectionState();
-        }
-      } catch (error) {
-        console.error("Error:", error);
+    try {
+      if (!contract || !currentAccount) {
+        throw new Error("Contract or account not initialized");
       }
-    } else if (electionState === 1) {
-      try {
-        if (contract) {
-          await contract.methods.endElection().send({ from: currentAccount });
-          getElectionState();
-        }
-      } catch (error) {
-        console.error("Error:", error);
-      }
-    }
 
+      if (electionState === 0) {
+        const candidateCount = await contract.methods.candidatesCount().call();
+        if (parseInt(candidateCount) < 2) {
+          alert("Please add at least 2 candidates before starting the election");
+          return;
+        }
+        
+        await contract.methods.startElection().send({ from: currentAccount });
+        alert("Election started successfully!");
+      } else if (electionState === 1) {
+        await contract.methods.endElection().send({ from: currentAccount });
+        alert("Election ended successfully!");
+      }
+      
+      await getElectionState();
+      await getCandidates();
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Error: " + (error.message || "Unknown error occurred"));
+    }
     setOpen(false);
+  };
+
+  const handleAddVoter = async (voterAddress) => {
+    try {
+      if (!web3.utils.isAddress(voterAddress)) {
+        throw new Error("Invalid Ethereum address");
+      }
+
+      const isAlreadyVoter = await contract.methods.checkVoterStatus(voterAddress).call();
+      if (isAlreadyVoter) {
+        alert("This address is already registered as a voter");
+        return;
+      }
+
+      await contract.methods.addVoter(voterAddress).send({ from: currentAccount });
+      alert("Voter added successfully!");
+    } catch (error) {
+      console.error("Error adding voter:", error);
+      alert("Error adding voter: " + error.message);
+    }
   };
 
   return (
